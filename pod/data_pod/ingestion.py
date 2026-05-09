@@ -35,11 +35,10 @@ class DataIngestionAgent:
         """
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] action: fetching_data | source: {self.source_system}")
         
-        # Gerçekçi veri dağılımı: %80 normal, %20 yüksek tutarlı (anomali riski)
         is_large_order = random.random() > 0.8
         amount = random.uniform(50000, 150000) if is_large_order else random.uniform(500, 15000)
 
-        # Basit matematiksel anomali skoru (Büyük işlem = Yüksek skor)
+
         anomaly_score = min(amount / 200000.0, 0.99) + random.uniform(0.0, 0.1)
 
         mock_tx = {
@@ -48,7 +47,7 @@ class DataIngestionAgent:
             "timestamp": time.time(),
             "amount": round(amount, 2),
             "currency": "USD",
-            "is_duplicate": random.random() > 0.95, # %5 mükerrer fatura senaryosu
+            "is_duplicate": random.random() > 0.95, 
             "anomaly_score": round(min(anomaly_score, 1.0), 4)
         }
         
@@ -59,12 +58,11 @@ class DataIngestionAgent:
         transactions = self.fetch_mock_data()
         
         for tx in transactions:
-            # 1. Denetim (Audit): Deterministik kural - Mükerrer ise anında reddet!
             if tx.get("is_duplicate"):
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] action: audit_check | status: blocked | reason: duplicate_invoice | tx_id: {tx['tx_id']}")
                 continue # Mesajı kuyruğa atma, atla.
             
-            # 2. Yayınlama (Publish): Temiz veriyi RabbitMQ'ya ilet.
+
             try:
                 message = json.dumps(tx)
                 self.channel.basic_publish(
@@ -72,13 +70,13 @@ class DataIngestionAgent:
                     routing_key=TARGET_QUEUE,
                     body=message,
                     properties=pika.BasicProperties(
-                        delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE # Mesaj kalıcılığı
+                        delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE 
                     )
                 )
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] action: publish | status: success | queue: {TARGET_QUEUE} | tx_id: {tx['tx_id']} | amount: {tx['amount']} {tx['currency']}")
             except Exception as e:
                  print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] action: publish | status: failed | tx_id: {tx['tx_id']} | error: {e}")
-                 self._connect_rabbitmq() # Bağlantı koparsa yeniden dene
+                 self._connect_rabbitmq() 
 
     def close(self):
         if self.connection and self.connection.is_open:
@@ -90,10 +88,10 @@ if __name__ == "__main__":
     agent = DataIngestionAgent(amqp_url=RABBITMQ_URL)
     
     try:
-        # KEDA'nın sürekli dinlediğini varsayarak basit bir sonsuz döngü simülasyonu
+
         while True:
             agent.audit_and_publish()
-            time.sleep(random.uniform(3.0, 7.0)) # 3 ile 7 saniye arası rastgele bekle
+            time.sleep(random.uniform(3.0, 7.0)) 
     except KeyboardInterrupt:
         print(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] pod_status: shutting_down | pod_id: data_pod")
         agent.close()
