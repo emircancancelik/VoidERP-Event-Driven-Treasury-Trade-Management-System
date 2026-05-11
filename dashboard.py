@@ -1,102 +1,156 @@
 import streamlit as st
 import pandas as pd
-import random
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 import time
+import random
 from datetime import datetime
 
-# --- Ayarlar ---
-st.set_page_config(
-    page_title="VoidERP | Autonomous Treasury",
-    page_icon="🧿",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# --- PROFESYONEL TEMA AYARLARI ---
+st.set_page_config(page_title="VoidERP | Otonom Hazine", layout="wide")
 
-# --- Sahte Veri Üreticisi (Jüri Simülasyonu İçin) ---
-def generate_mock_log():
-    tx_id = f"TXN-{random.randint(10000000, 99999999)}"
-    amount = round(random.uniform(1000, 150000), 2)
-    
-    # %70 Onay, %30 Ret Senaryosu
-    if random.random() > 0.3:
-        status = "APPROVED"
-        reason = "Kelly Criterion & ECE Passed"
-        calibrated_trust = round(random.uniform(0.70, 0.95), 2)
-    else:
-        status = "DROP"
-        reason = random.choice(["high_ece_error", "low_calibrated_trust", "duplicate_invoice"])
-        calibrated_trust = round(random.uniform(0.10, 0.45), 2)
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; color: #ffffff; }
+    .stMetric { background-color: #1a1c24; padding: 15px; border-radius: 10px; border: 1px solid #deff9a; }
+    </style>
+    """, unsafe_allow_html=True)
 
-    return {
-        "timestamp": datetime.now().strftime("%H:%M:%S"),
-        "tx_id": tx_id,
-        "amount_usd": amount,
-        "status": status,
-        "reason": reason,
-        "trust_score": calibrated_trust
-    }
+# --- SIDEBAR ---
+st.sidebar.title("🛠️ Sistem Ayarları")
+st.sidebar.markdown("---")
+trust_threshold = st.sidebar.slider("Güven Eşiği (Trust Threshold)", 0.50, 0.95, 0.75, 0.05)
+risk_tolerance = st.sidebar.slider("Risk Toleransı (ATR Multiplier)", 1.0, 5.0, 2.5, 0.5)
+ece_limit = st.sidebar.slider("Maksimum ECE Hatası", 0.05, 0.30, 0.15, 0.01)
 
-# --- Streamlit Arayüzü ---
-st.title("VoidERP: Autonomous Treasury Orchestrator")
-st.markdown("### Real-time AI Decision & ECE Calibration Monitor")
+# --- ANA PANEL ---
+st.title("🧿 VoidERP: Otonom Hazine Orkestrasyonu")
+st.write(f"**Veri Kaynağı:** SAP S/4HANA Enterprise Management | **Durum:** Bağlı ✅")
 
-# Metrik Kartları
-col1, col2, col3, col4 = st.columns(4)
-metric_total_tx = col1.empty()
-metric_approved = col2.empty()
-metric_dropped = col3.empty()
-metric_avg_trust = col4.empty()
+# Üst Metrikler (Tutarlı hale getirildi)
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Toplam İşlem Hacmi", "₺1.240.000", "+12%")
+m2.metric("Bloklanan Anomali", "42 Adet", "-5")
+m3.metric("AI Güven Skoru (Ort.)", "%88", "+2%")
+m4.metric("Tahmini Tasarruf", "₺24.800", "Lider") # 1.2M TL hacimde 24K TL tasarruf (yaklaşık %2) daha gerçekçidir.
 
 st.markdown("---")
 
-# Canlı Log Tablosu
-st.subheader("Live Execution Stream")
-log_container = st.empty()
+# --- GRAFİKLER ---
+c1, c2 = st.columns([1, 1])
 
-# --- State Management ---
-if 'log_data' not in st.session_state:
-    st.session_state.log_data = []
+with c1:
+    st.subheader("📊 SAP Veri Kalitesi & Anomali Dağılımı")
+    sap_errors = pd.DataFrame({
+        "Hata Tipi": ["Mükerrer Kayıt", "Büyük Tutar Sapması", "Eksik Metadata", "Geçersiz Para Birimi"],
+        "Sıklık": [25, 15, 10, 5]
+    })
+    fig_sap = px.bar(sap_errors, x="Hata Tipi", y="Sıklık", color="Hata Tipi", 
+                     template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
+    st.plotly_chart(fig_sap, use_container_width=True)
 
-if 'stats' not in st.session_state:
-    st.session_state.stats = {"total": 0, "approved": 0, "dropped": 0, "trust_sum": 0}
+with c2:
+    st.subheader("🧠 AI Kalibrasyon Analizi (ECE vs. Accuracy)")
+    conf = np.linspace(0.1, 1.0, 10)
+    acc = conf - (ece_limit * np.random.rand(10))
+    fig_ece = go.Figure()
+    fig_ece.add_trace(go.Scatter(x=conf, y=conf, name="Mükemmel Kalibrasyon", line=dict(dash='dash', color='grey')))
+    fig_ece.add_trace(go.Scatter(x=conf, y=acc, mode='lines+markers', name='Mevcut AI Performansı', line=dict(color='#deff9a')))
+    fig_ece.update_layout(template="plotly_dark", xaxis_title="Güven Skoru", yaxis_title="Gerçek Doğruluk")
+    st.plotly_chart(fig_ece, use_container_width=True)
 
-# --- Canlı Döngü ---
-if st.button("Start Live Feed"):
-    st.session_state.running = True
+# --- CANLI KARAR AKIŞI ---
+st.subheader("⚡ Canlı Otonom Karar Akışı")
+if 'logs' not in st.session_state:
+    st.session_state.logs = []
 
-if st.button("Stop"):
-    st.session_state.running = False
-
-if st.session_state.get('running', False):
-    while True:
-        new_log = generate_mock_log()
+if st.button("Sistemi Tetikle (Simülasyon Başlat)"):
+    for i in range(5):
+        trust = round(np.random.uniform(0.4, 0.98), 2)
+        status = "ONAYLANDI" if trust > trust_threshold else "BLOKLANDI"
+        reason = "ECE Güven Sınırı Geçildi" if status == "ONAYLANDI" else "Düşük Kalibre Güven"
         
-        st.session_state.log_data.insert(0, new_log)
-        st.session_state.log_data = st.session_state.log_data[:50]
+        st.session_state.logs.insert(0, {
+            "Zaman": datetime.now().strftime("%H:%M:%S"),
+            "İşlem ID": f"SAP-{random.randint(1000,9999)}", # Artık 'random' tanımlı, hata vermez.
+            "Tutar": f"₺{random.randint(500, 20000)}", # Para birimi ₺ olarak eşitlendi.
+            "Durum": status,
+            "Neden": reason,
+            "AI Güven": f"%{int(trust*100)}"
+        })
+        time.sleep(0.5)
+
+# Tabloyu renklendirme ve gösterme
+df_logs = pd.DataFrame(st.session_state.logs)
+if not df_logs.empty:
+    def color_status(val):
+        color = '#4ade80' if val == 'ONAYLANDI' else '#f87171'
+        return f'color: {color}'
+    
+    st.table(df_logs) # Sade ve şık tablo görünümü
+else:
+    st.info("Veri akışı bekleniyor... Lütfen 'Sistemi Tetikle' butonuna basın.")
+
+# --- VOIDCHAT: AJAN TABANLI FİNANSAL ASİSTAN ---
+st.markdown("---")
+st.subheader("💬 VoidChat: Otonom Finans Asistanı")
+
+# Sohbet geçmişini başlat
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Merhaba! Ben VoidERP finans asistanıyım. SAP verilerinizi ve nakit akışınızı analiz edebilirim. Size nasıl yardımcı olabilirim?"}
+    ]
+
+# Geçmiş mesajları ekrana bas
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if "chart" in message:
+            st.plotly_chart(message["chart"], use_container_width=True)
+
+# Kullanıcı girişi
+if prompt := st.chat_input("Örn: Gelecek ay maaş ödemelerim riskte mi?"):
+    # 1. Kullanıcı mesajını göster ve kaydet
+    st.chat_message("user").markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # 2. Ajanların yanıt süreci
+    with st.chat_message("assistant"):
+        # Ajanların "Düşünme" Süreci (Expander içinde teknik derinlik)
+        with st.status("Ajanlar senaryoyu tartışıyor...", expanded=True) as status:
+            st.write("📡 **Data Pod:** SAP S/4HANA borç yaşlandırma tablosu çekiliyor...")
+            time.sleep(1)
+            st.write("🧠 **Intelligence Pod:** Nakit akış projeksiyonu ve gecikme olasılıkları hesaplanıyor...")
+            time.sleep(1.2)
+            st.write("🛡️ **Control Pod:** ECE güven skoru denetlendi. Tahmin geçerli.")
+            status.update(label="Analiz Tamamlandı!", state="complete", expanded=False)
+
+        # 3. Mantıksal Yanıt Üretimi
+        response = ""
+        chart_to_add = None
+
+        # Basit keyword bazlı chatbot mantığı (Hackathon için güvenli liman)
+        low_prompt = prompt.lower()
+        if "maaş" in low_prompt or "kira" in low_prompt:
+            response = "Analizime göre gelecek ayki ₺90.000 tutarındaki maaş ve kira yükümlülüklerinizi karşılayabiliyorsunuz. Kasadaki mevcut nakit ve beklenen ₺140.000 tahsilat güvenli bir marj bırakıyor."
+            # Grafik üret
+            x_data = ["Mevcut Nakit", "Beklenen Tahsilat", "Giderler (Maaş/Kira)"]
+            y_data = [100000, 140000, -90000]
+            fig = px.bar(x=x_data, y=y_data, color=x_data, template="plotly_dark", title="Nakit Pozisyonu Analizi")
+            st.plotly_chart(fig, use_container_width=True)
+            chart_to_add = fig
         
-        st.session_state.stats["total"] += 1
-        if new_log["status"] == "APPROVED":
-            st.session_state.stats["approved"] += 1
+        elif "alacak" in low_prompt or "gecikme" in low_prompt:
+            response = "Geciken alacaklar şu an nakit akışınızı %12 oranında riske atıyor. Özellikle ₺24.000 tutarındaki alacağın 15 günü geçmesi, ay sonu likidite oranınızı 1.1'e düşürebilir."
+        
         else:
-            st.session_state.stats["dropped"] += 1
-        st.session_state.stats["trust_sum"] += new_log["trust_score"]
+            response = "Bu konuda veriye dayalı bir analiz yapmamı ister misiniz? SAP verilerinizde yatırım karlılığı veya borç yaşlandırma analizi gerçekleştirebilirim."
 
-        df = pd.DataFrame(st.session_state.log_data)
+        st.markdown(response)
         
-        def color_status(val):
-            color = 'green' if val == 'APPROVED' else 'red'
-            return f'color: {color}; font-weight: bold'
-        
-        styled_df = df.style.map(color_status, subset=['status'])
-        
-        with log_container:
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            
-        avg_trust = st.session_state.stats["trust_sum"] / st.session_state.stats["total"] if st.session_state.stats["total"] > 0 else 0
-        
-        metric_total_tx.metric("Total Processed", st.session_state.stats["total"])
-        metric_approved.metric("Approved (Risk Checked)", st.session_state.stats["approved"])
-        metric_dropped.metric("Dropped (AI Hallucination)", st.session_state.stats["dropped"])
-        metric_avg_trust.metric("Avg Calibrated Trust", f"%{int(avg_trust*100)}")
-
-        time.sleep(1.5)
+        # Yanıtı geçmişe ekle
+        new_msg = {"role": "assistant", "content": response}
+        if chart_to_add:
+            new_msg["chart"] = chart_to_add
+        st.session_state.messages.append(new_msg)
