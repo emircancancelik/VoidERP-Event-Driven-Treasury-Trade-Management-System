@@ -1,0 +1,11 @@
+bin/
+etc/
+include/
+lib/
+mnt/
+share/
+pyvenv.cfg
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
